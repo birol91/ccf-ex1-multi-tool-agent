@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Tool Support Agent — System Architecture</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --panel: #ffffff;
+      --line: #dde3ec;
+      --txt: #1c2330;
+      --muted: #69748a;
+      --user: #4338ca;      /* indigo  — user / input        */
+      --loop: #7c3aed;      /* violet  — agentic loop        */
+      --hook: #C62828;      /* red     — programmatic gate   */
+      --tool: #16a34a;      /* green   — tool execution      */
+      --llm:  #1565C0;      /* blue    — Claude API (brain)  */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--txt);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 40px 20px 70px;
+    }
+    h1 {
+      font-size: 30px; font-weight: 700; text-align: center;
+      letter-spacing: -0.4px; margin: 0 0 8px;
+    }
+    .subtitle {
+      text-align: center; color: var(--muted); font-size: 16px;
+      margin: 0 0 34px;
+    }
+    .subtitle code { background:#eef1f6; padding:2px 7px; border-radius:5px; font-size:15px; }
+    .diagram {
+      max-width: 1500px; margin: 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 30px 26px 20px;
+      box-shadow: 0 14px 40px rgba(28, 35, 48, 0.09);
+    }
+    svg { width: 100%; height: auto; display: block; }
+
+    .node {
+      border-radius: 16px; background: #ffffff;
+      padding: 18px 18px; text-align: center;
+      box-shadow: 0 6px 16px rgba(28, 35, 48, 0.12);
+      height: 100%;
+    }
+    .node .title { font-weight: 700; font-size: 21px; }
+    .node .desc  { font-size: 15px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+    .node.user { border: 2px solid var(--user); }
+    .node.loop { border: 2px solid var(--loop); }
+    .node.hook { border: 3px solid var(--hook); background: #fff7f7; }
+    .node.tool { border: 2px solid var(--tool); }
+    .node.llm  { border: 2px solid var(--llm); background: #f4f8fd; }
+
+    .badge {
+      display: inline-block; font-size: 13px; font-weight: 700;
+      padding: 4px 12px; border-radius: 8px; color: #fff; margin-top: 12px;
+    }
+    .badge.new  { background: var(--hook); }
+    .badge.ext  { background: var(--llm); }
+    .badge.code { background: var(--tool); }
+
+    .toollist { text-align:left; font-size:15px; color:var(--txt); margin-top:10px; line-height:1.9; }
+    .toollist b { color: var(--tool); }
+    .toollist .ro { color: var(--muted); font-size:13px; }
+    .toollist .si { color: var(--hook); font-size:13px; font-weight:600; }
+
+    /* Concept legend */
+    .legend {
+      max-width: 1500px; margin: 30px auto 0;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 20px;
+    }
+    .concept {
+      background: #fff; border: 1px solid var(--line);
+      border-left: 6px solid var(--loop);
+      border-radius: 12px; padding: 20px 22px;
+    }
+    .concept.c-stop { border-left-color: var(--loop); }
+    .concept.c-tool { border-left-color: var(--tool); }
+    .concept.c-hook { border-left-color: var(--hook); }
+    .concept h3 { margin: 0 0 10px; font-size: 19px; }
+    .concept code { background: #eef1f6; padding: 2px 8px; border-radius: 6px; font-size: 15px; }
+    .concept p { margin: 0; font-size: 16px; color: var(--muted); line-height: 1.6; }
+
+    .flowlabel { font-size: 17px; font-weight: 700; }
+    .flowsub   { font-size: 14px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Multi-Tool Support Agent — System Architecture</h1>
+  <p class="subtitle">CCA-F Preparation Exercise 1 · manual agentic loop · <code>claude-sonnet-4-6</code> · no framework</p>
+
+  <div class="diagram">
+    <!-- viewBox is large + mostly vertical flow so arrows never overlap -->
+    <svg viewBox="0 0 1400 1080" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrLoop" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+          <path d="M0,0 L12,6 L0,12 z" fill="#7c3aed"/>
+        </marker>
+        <marker id="arrTool" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+          <path d="M0,0 L12,6 L0,12 z" fill="#16a34a"/>
+        </marker>
+        <marker id="arrHook" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+          <path d="M0,0 L12,6 L0,12 z" fill="#C62828"/>
+        </marker>
+        <marker id="arrLLM" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+          <path d="M0,0 L12,6 L0,12 z" fill="#1565C0"/>
+        </marker>
+      </defs>
+
+      <!-- ===================== agent.py container ===================== -->
+      <rect x="40" y="70" width="780" height="970" rx="20" fill="#fbfbfe" stroke="#e3e0f2" stroke-width="2"/>
+      <text x="64" y="108" font-size="20" font-weight="700" fill="#7c3aed">agent.py  (single file, ~150 lines)</text>
+
+      <!-- USER (top) -->
+      <foreignObject x="270" y="130" width="320" height="120">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="node user">
+          <div class="title">User message</div>
+          <div class="desc">Natural language; may contain several requests at once</div>
+        </div>
+      </foreignObject>
+
+      <!-- LOOP (center) -->
+      <foreignObject x="250" y="380" width="360" height="180">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="node loop">
+          <div class="title">run_agent()  —  agentic loop</div>
+          <div class="desc">Inspects <b>stop_reason</b> each turn to continue or stop.<br/>We control the loop, not the model.</div>
+        </div>
+      </foreignObject>
+
+      <!-- HOOK -->
+      <foreignObject x="100" y="690" width="300" height="190">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="node hook">
+          <div class="title">tool_hook()</div>
+          <div class="desc">Runs <b>before</b> a tool executes. <b>Every</b> refund gated: ≥ 500 → escalate · &lt; 500 → ask user to confirm.</div>
+          <span class="badge new">NEW · CODE GATE</span>
+        </div>
+      </foreignObject>
+
+      <!-- EXECUTE_TOOL -->
+      <foreignObject x="460" y="690" width="300" height="190">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="node tool">
+          <div class="title">execute_tool()</div>
+          <div class="desc">Runs the requested tool. Returns success or a <b>structured error</b>.</div>
+          <span class="badge code">YOUR CODE</span>
+        </div>
+      </foreignObject>
+
+      <!-- TOOLS list (bottom) -->
+      <foreignObject x="250" y="910" width="360" height="120">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="node tool">
+          <div class="title">Tools + mock data</div>
+          <div class="toollist">
+            <b>get_customer</b> <span class="ro">read-only</span><br/>
+            <b>lookup_order</b> <span class="ro">read-only</span><br/>
+            <b>process_refund</b> <span class="si">side-effect · irreversible</span><br/>
+            <b>escalate_to_human</b> <span class="si">side-effect</span>
+          </div>
+        </div>
+      </foreignObject>
+
+      <!-- ===================== Claude API (external) ===================== -->
+      <rect x="980" y="70" width="380" height="970" rx="20" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="2"/>
+      <text x="1004" y="108" font-size="20" font-weight="700" fill="#1565C0">External  ·  HTTPS</text>
+      <foreignObject x="1030" y="400" width="300" height="200">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="node llm">
+          <div class="title">Claude API</div>
+          <div class="desc">The "brain". Decides which tool to call (model-driven). Stateless — full history sent every turn.</div>
+          <span class="badge ext">claude-sonnet-4-6</span>
+        </div>
+      </foreignObject>
+
+      <!-- ===================== ARROWS (clean, non-overlapping) ===================== -->
+
+      <!-- 1. user -> loop  (straight down) -->
+      <path d="M430,250 L430,376" stroke="#4338ca" stroke-width="3" fill="none" marker-end="url(#arrLoop)"/>
+
+      <!-- 2. loop -> Claude API : request (top horizontal channel, y=440) -->
+      <path d="M610,440 L1026,470" stroke="#1565C0" stroke-width="3" fill="none" marker-end="url(#arrLLM)"/>
+      <text x="660" y="430" class="flowlabel" fill="#1565C0">messages + tools  →</text>
+
+      <!-- 3. Claude API -> loop : response (lower horizontal channel, y=525, dashed) -->
+      <path d="M1026,535 L614,510" stroke="#1565C0" stroke-width="3" fill="none" stroke-dasharray="8 5" marker-end="url(#arrLoop)"/>
+      <text x="660" y="565" class="flowlabel" fill="#1565C0">←  stop_reason + content</text>
+
+      <!-- 4. loop -> hook : on tool_use (down-left) -->
+      <path d="M360,560 L300,686" stroke="#C62828" stroke-width="3" fill="none" marker-end="url(#arrHook)"/>
+      <text x="120" y="640" class="flowsub" fill="#C62828">on stop_reason == "tool_use"</text>
+
+      <!-- 5. hook -> execute_tool : if not gated (horizontal between the two) -->
+      <path d="M404,785 L456,785" stroke="#16a34a" stroke-width="3" fill="none" marker-end="url(#arrTool)"/>
+      <text x="356" y="775" class="flowsub" fill="#16a34a">pass</text>
+
+      <!-- 6. execute_tool -> tools (down) -->
+      <path d="M610,884 L545,906" stroke="#16a34a" stroke-width="3" fill="none" marker-end="url(#arrTool)"/>
+
+      <!-- 7. execute_tool -> loop : tool_result back (up-right curve, dashed) -->
+      <path d="M610,720 C660,640 660,600 614,545" stroke="#16a34a" stroke-width="3" fill="none" stroke-dasharray="8 5" marker-end="url(#arrLoop)"/>
+      <text x="640" y="660" class="flowsub" fill="#16a34a">tool_result →</text>
+
+      <!-- loop-back hint arc on the loop node -->
+      <text x="250" y="350" class="flowsub" fill="#7c3aed">repeat until stop_reason == "end_turn"</text>
+    </svg>
+  </div>
+
+  <!-- Concept legend -->
+  <div class="legend">
+    <div class="concept c-stop">
+      <h3>stop_reason — the only stop signal</h3>
+      <p>Every Claude response says <i>why</i> it stopped. <code>"tool_use"</code> = "I need a tool, your turn" → loop continues. <code>"end_turn"</code> = "I'm done" → loop ends. Never parse the text to decide.</p>
+    </div>
+    <div class="concept c-tool">
+      <h3>tool_use — a request, not an execution</h3>
+      <p>A content block where Claude says <i>"call this tool with these inputs"</i> (carries <code>id</code>, <code>name</code>, <code>input</code>). Claude does <b>not</b> run it — <b>you</b> do, and return a <code>tool_result</code> matched by <code>tool_use_id</code>. The tools are the ones <b>you define and code</b>; Claude only picks from your list.</p>
+    </div>
+    <div class="concept c-hook">
+      <h3>hook — deterministic guardrail</h3>
+      <p>Code that runs <b>before</b> a tool executes. Gates <b>every</b> <code>process_refund</code> by tool name (100% deterministic): ≥ 500 → escalate to a human, &lt; 500 → ask the user to confirm (yes/no). Even if the model mis-routes a status query to a refund, the user is asked first. Enforced in code, not the prompt — a prompt can be ignored, code cannot.</p>
+    </div>
+  </div>
+</body>
+</html>
