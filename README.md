@@ -136,9 +136,3 @@ confirm/escalate hook, and (with ORD-FLAKY) a transient-error retry.
 | Vague tool descriptions | Boundary sentences (read vs. side-effect) |
 | Tool results in separate user messages | All `tool_result` in one user message |
 | Use a `tool_runner` helper | Write a manual loop (needed for the hook) |
-
----
-
-> The same confirm/escalate guardrail maps onto a BMS command agent — a routine command asks
-> the operator to confirm; an over-threshold current/voltage command escalates for human
-> oversight.
