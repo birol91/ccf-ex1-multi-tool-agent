@@ -93,8 +93,38 @@ The goal is not a support bot, but to combine five agent skills in one system:
 
 ## 4. Architecture
 
-Everything in **one file** (`agent.py`, ~150 lines), in three layers. See
-[`architecture.html`](architecture.html) for the diagram.
+```mermaid
+flowchart LR
+    User([User message]):::user --> Loop
+
+    subgraph AGENT["agent.py — single file"]
+        direction TB
+        Loop["run_agent()<br/>agentic loop<br/>(drives on stop_reason)"]:::loop
+        Hook["tool_hook()<br/>≥ 500 → escalate<br/>&lt; 500 → confirm<br/>NEW · code gate"]:::hook
+        Exec["execute_tool()<br/>4 tools + structured errors"]:::tool
+        Data[("database.xlsx<br/>customers · orders · order_items")]:::data
+
+        Loop -->|"on tool_use"| Hook
+        Hook -->|"pass"| Exec
+        Exec --> Data
+        Exec -.->|"tool_result"| Loop
+    end
+
+    Loop -->|"messages + tools"| Claude
+    Claude["Claude API<br/>(the brain)<br/>claude-sonnet-4-6"]:::llm -.->|"stop_reason + content"| Loop
+
+    classDef user fill:#eef0fb,stroke:#4338ca,stroke-width:2px,color:#1c2330
+    classDef loop fill:#f3eefd,stroke:#7c3aed,stroke-width:2px,color:#1c2330
+    classDef hook fill:#fff1f1,stroke:#c62828,stroke-width:3px,color:#1c2330
+    classDef tool fill:#eafaf0,stroke:#16a34a,stroke-width:2px,color:#1c2330
+    classDef data fill:#eafaf0,stroke:#16a34a,stroke-width:1px,color:#1c2330
+    classDef llm fill:#eaf2fc,stroke:#1565c0,stroke-width:2px,color:#1c2330
+```
+
+> The loop repeats until `stop_reason == "end_turn"`. A full styled version is in
+> [`architecture.html`](architecture.html) (open in a browser).
+
+Everything in **one file** (`agent.py`), in three layers:
 
 1. **LLM (brain)** — the Anthropic Claude API. Decides *which* tool to call. Runs in the
    cloud (HTTPS). Stateless — we resend the full conversation every turn.
